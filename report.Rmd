@@ -1,0 +1,625 @@
+---
+title: "JHU Regression Models - Motor Trends Analysis"
+author: "Richard Allen"
+date: "28 March 2022"
+output:
+  html_document: 
+    highlight: pygments
+    theme: yeti
+    df_print: default
+---
+
+<style type="text/css">
+  pre code{
+  font-size: 8pt;
+}
+</style>
+
+```{r, echo = FALSE}
+# set defaults: cache chunks to speed compiling subsequent edits.
+knitr::opts_chunk$set(cache=TRUE, echo = FALSE, message = FALSE, warning = FALSE)
+set.seed(123456)
+```
+
+```{r packages}
+library(MASS)
+library(ggplot2)
+library(kableExtra)
+library(tidyverse)
+library(ggpubr)
+library(GGally)
+library(Metrics)
+library(lmtest)
+library(car)
+```
+
+------------------------------------------------------------------------
+
+# Synopsis
+
+------------------------------------------------------------------------
+
+Looking at a data set of a collection of cars, you are interested in exploring the relationship between a set of variables and miles per gallon (MPG) (outcome). You are particularly interested in the following two questions:
+
+-   "Is an automatic or manual transmission better for MPG?" (H~0~: mpg~auto~ = mpg~manual~, H~A~: mpg~auto~ ≠ mpg~manual~)
+-   "Quantify the MPG difference between automatic and manual transmissions"
+
+------------------------------------------------------------------------
+
+# Executive Summary
+
+------------------------------------------------------------------------
+
+This report sets out to examine the relationship between fuel economy and transmission type in the `mtcars` data set.
+
+With only 32 observations but 10 explanatory variables with high degrees of collinearity making 1,024 possible models, the best linear model suffers from a high degree of uncertainty.
+
+Additionally, there is a high degree of bias in the data set with respect to sampled manual and automatic cars, with most manual cars having characteristics independent of transmission type that favour better fuel economy than the automatic cars included.
+
+Using a model selected by backwards regression and VIF elimination, the model suggests that, ***for the cars in the `mtcar` data set, holding all other variables constant, changing from automatic to manual transmission will increase the fuel economy by 2.15 mpg***. However, with a residual standard error of 2.308, **the null hypothesis that transmission has no effect on fuel economy is failed to be rejected**.
+
+------------------------------------------------------------------------
+
+# Data
+
+------------------------------------------------------------------------
+
+```{r data-transformation}
+df_cars <- mtcars %>%
+    mutate(transmission = factor(am, labels = c("Automatic", "Manual"))) %>%
+    mutate(cyl_alignment = factor(vs, labels = c("V-Shaped", "Straight"))) %>%
+    select(-am, -vs)
+```
+
+The `mtcars` dataset can be accessed from any standard R installation using `view(mtcars)`.
+
+The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973--74 models).
+
+There are two categorical variables, `am` and `vs`, which are numeric in the data set. For the purposes of this analysis, these are converted to factor variables and renamed to `transmission` and `cyl_alignment` respectively.
+
+There is no information available on sampling methodology, or even if this represents a random sample of vehicles. As such, it cannot be generalised beyond the scope of this data set. No randomised control group was used, no causal inference can be made from studies of this data set.
+
+Additionally, the cars listed represent 50 year old technology, any model trained on this data set would be obsolete on modern cars.
+
+With such a small sample set for modelling, no split for training and testing was made as this would have further degraded the viability of a model. The modelling was trained against the full dataset.
+
+------------------------------------------------------------------------
+
+# Exploratory Data Analysis Summary
+
+------------------------------------------------------------------------
+
+See [Exploratory Data Analysis] for detailed analysis.
+
+Most manual transmission cars in the data set lie in "lighter" vehicles - those with smaller engines, lighter weight, higher rear axle ratios. These are all factors that influence the fuel economy significantly and will bias the prediction of the effect of transmission type on fuel economy.
+
+Another correlation brought out is the number forward gears which is a function of transmission type. No manual cars have only 3 gears while no automatic cars have 5 gears. This variable is not used in modelling analysis.
+
+Each variable shows a strong relationship with fuel economy.
+
+Displacement (engine size) and horsepower both show strongly exponential relationships, and carburettors mildly so. The log of each of these variables is used for model analysis.
+
+All variables display significant collinearity presenting a challenge for meaningful linear modelling.
+
+------------------------------------------------------------------------
+
+# Regression Analysis Summary
+
+------------------------------------------------------------------------
+
+Please refer to [Regression Analysis] in the Appendix for full details of each section below including model test graphs.
+
+------------------------------------------------------------------------
+
+## Choosing a Model
+
+------------------------------------------------------------------------
+
+Because of the small sample size and high degree of collinearity, standard automated variable selection methods such as stepAIC, ANOVA and lasso failed to produce a meaningful model. In the end, a manual backwards regression was used, starting with all variables (other than `gear` - see above), then eliminating one variable at a time and examining the effect on the Adjusted R^2^ and RMSE values. The model with the highest Adjusted R^2^ was selected, the process repeated for that model recursively until no further improvement in the Adjusted R^2^ could be seen.
+
+Two models were found from this process:
+
+The most parsimonious: `mpg ~ wt + transmission + log.disp + log.carb + log.hp`
+
+The highest prediction rate (by RMSE): `mpg ~ cyl + drat + wt + qsec + transmission + log.disp + log.carb + log.hp`
+
+Using VIF analysis on these two models showed the highest prediction model to be largely unworkable due to many variables showing high collinearity.
+
+Removing displacement from the most parsimonious brought the VIF scores to an acceptable level, thus the final model used is `mpg ~ wt + transmission + log.carb + log.hp`
+
+------------------------------------------------------------------------
+
+## Testing the Model
+
+------------------------------------------------------------------------
+
+-   Because of the small sample size, no train/test split of the data set was made, the full data set was used for both training and testing.
+-   Residuals are mostly normally distributed, however there is a spike in the positive tail.
+-   Residuals are mostly scattered around the zero, however in both tails they tend to positive. There are no obvious structures in the residual distribution apart from this.
+-   Normal QQ plot shows a distribution mostly along the theoretical line, however the tails show some right-skew.
+-   Scale-Location is mostly horizontal until around 21mpg, after which it rises. Residuals are scattered evenly around the red line. This slope is a reflection of the right-skew mentioned previously and is less than ideal.
+-   No points lie outside or near the 0.5 line on the Cook's Distance plot, therefore no points are considered outliers for review. Leverage is well within acceptable range.
+
+------------------------------------------------------------------------
+
+## Evaluating the model
+
+------------------------------------------------------------------------
+
+-   87.2% of variation can be explained by this model.
+
+-   `log.carb` is least significant, however removing this from the model reduces Adjusted R^2^ and increases RMSE.
+
+-   62.5% of observed values lie within their 95% confidence interval. This model would not be accepted under any normal conditions.
+
+-   `transmission` is not significant by P-Value, however it is kept in the model for the purposes of answering the research question.
+
+-   The summary indicates that ***for the cars in the data set, all other variables being held constant, changing from automatic to manual will increase the fuel economy by 2.15 mpg***. However, with a residual standard error of 2.308, **the null hypothesis that transmission has no effect on fuel economy is failed to be rejected**.
+
+------------------------------------------------------------------------
+
+# Conclusion
+
+------------------------------------------------------------------------
+
+While the model predicted an improvement in fuel economy by using manual transmission over automatic (all other variables being held equal), the predicted change was well within possible ranges due to the high standard error and therefore no inference can made regarding the effect of transmission and the null hypothesis that transmission does not affect fuel economy is failed to be rejected.
+
+This study highlights the need for meaningfully sized sample sets with greater distribution of properties and the complexities arising from highly co-dependent variables.
+
+------------------------------------------------------------------------
+
+# Appendix
+
+## Exploratory Data Analysis
+
+The `mtcars` data frame after transforming transmission and engine shape to factor variables:
+
+```{r eda}
+str(df_cars) %>% kbl()
+t_colours <- c("Automatic" = "#33A02B", "Manual" = "#1F78B4")
+
+density_graph <- function(variable, description, legend = "none"){
+    df_cars %>% 
+        ggplot(aes(x=!!as.name(variable), fill=transmission, colour=transmission)) +
+        geom_histogram(
+            aes(y = stat(density, ..scaled..)),
+            position="identity", 
+            alpha=0.4, 
+            bins = 30, 
+        ) +
+        geom_line(
+            aes(y = ..density..),
+            stat = 'density',
+            size = 1.5,
+            alpha = 0.8
+        ) +
+        theme_minimal()  +
+        theme(plot.title = element_text(hjust = 0.5), legend.position=legend) +
+        scale_fill_manual(name="Transmission", values=t_colours) +
+        scale_colour_manual(name="Transmission", values=t_colours) +
+        labs(x=description, y=NULL)
+}
+
+eda1 <- density_graph("mpg", "Fuel Economy (mpg)")
+eda2 <- density_graph("cyl", "Number of Cylinders")
+eda3 <- density_graph("disp", "Displacement (cu in)")
+eda4 <- density_graph("hp", "Gross Horsepower")
+eda5 <- density_graph("drat", "Rear Axle Ratio")
+eda6 <- density_graph("wt", "Weight (1000 lbs)")
+eda7 <- density_graph("qsec", "Quarter Mile Time")
+eda8 <- density_graph("gear", "Number of Forward Gears")
+eda9 <- density_graph("carb", "	Number of Carburetors")
+eda10 <- df_cars %>% 
+    ggplot(aes(x=cyl_alignment, fill=transmission)) +
+    geom_bar(alpha=0.8)  +
+    theme_minimal()  +
+    theme(legend.position="none") +
+    scale_fill_manual(name="Transmission", values=t_colours) +
+    labs(x="Cylinder Alignment", y=NULL)
+leg <- get_legend(density_graph("carb", "Number of Carburetors", "bottom"))
+```
+
+First examine the distribution of each variable against transmission type:
+
+::: {align="center" style="font-size: 120%;font-weight: bold;"}
+Density Function of Each Variable, Split by Transmission Type
+:::
+
+::: columns
+::: {.column width="33%"}
+```{r density-c1, fig.height=3, fig.width=4}
+eda1; eda4; eda7
+```
+:::
+
+::: {.column width="33%"}
+```{r density-c2, fig.height=3, fig.width=4}
+eda2; eda5; eda8; eda10
+```
+
+```{r density-legend, fig.height=1, fig.width=3}
+as_ggplot(leg)
+```
+:::
+
+::: {.column width="33%"}
+```{r density-c3, fig.height=3, fig.width=4}
+eda3; eda6; eda9
+```
+:::
+:::
+
+Next, prior to building regression models, check relationship type between mpg and each variable.
+
+```{r eda-mpg-rel}
+plot_mpg <- function(variable, description){
+    df_cars %>% 
+        ggplot(aes(x=!!as.name(variable), y=mpg)) +
+        geom_point(colour = "blue", size=5, alpha=0.4) +
+        theme_minimal() +
+        geom_smooth()
+}
+
+eda11 <- plot_mpg("transmission", "Transmission Type")
+eda12 <- plot_mpg("cyl", "Number of Cylinders")
+eda13 <- plot_mpg("disp", "Displacement (cu in)")
+eda14 <- plot_mpg("hp", "Gross Horsepower")
+eda15 <- plot_mpg("drat", "Rear Axle Ratio")
+eda16 <- plot_mpg("wt", "Weight (1000 lbs)")
+eda17 <- plot_mpg("carb", "Number of Carburetors")
+eda18 <- plot_mpg("cyl_alignment", "Alignment")
+```
+
+::: {align="center" style="font-size: 120%;font-weight: bold;"}
+Relationship of Variables with Fuel Economy
+:::
+
+::: columns
+::: {.column width="33%"}
+```{r eda-mpg-c1, fig.height=3, fig.width=4}
+eda11; eda14; eda17
+```
+:::
+
+::: {.column width="33%"}
+```{r eda-mpg-c2, fig.height=3, fig.width=4}
+eda12; eda15; eda18; 
+```
+:::
+
+::: {.column width="33%"}
+```{r eda-mpg-c3, fig.height=3, fig.width=4}
+eda13; eda16
+```
+:::
+:::
+
+Check log relationship with mpg for the possibly exponential variables:
+
+```{r eda-mpg-exp}
+df_cars <- df_cars %>% 
+    mutate(log.disp = log(disp))
+eda21 <- plot_mpg("log.disp", "Log of Displacement (log(cu in))")
+
+df_cars <- df_cars %>% 
+    mutate(log.hp = log(hp))
+eda22 <- plot_mpg("log.hp", "Log of Gross Horsepower")
+
+df_cars <- df_cars %>% 
+    mutate(log.carb = log(carb))
+eda23 <- plot_mpg("log.carb", "Log of Number of Carburetors")
+```
+
+::: columns
+::: {.column width="33%"}
+```{r eda-mpg-log-c1, fig.height=3, fig.width=4}
+eda21
+```
+:::
+
+::: {.column width="33%"}
+```{r eda-mpg-log-c2, fig.height=3, fig.width=4}
+eda22 
+```
+:::
+
+::: {.column width="33%"}
+```{r eda-mpg-log-c3, fig.height=3, fig.width=4}
+eda23
+```
+:::
+:::
+
+-   The log of Displacement and horsepower both show a much more linear relationship with fuel economy and will be used for modelling.
+
+-   Count of carburettors hasn't produced anything meaningful, it's more likely being pulled by the two data points at 6 and 8, though the relationship is more linear now. The log will be used for model analysis but only kept for final modelling with strong reasons.
+
+Finally, check for collinearity between numeric variables (excluding fuel economy).
+
+```{r eda-ggpairs, fig.width=10}
+df_cars <- df_cars %>%
+    select(-disp, -hp, -carb)
+df_cars %>% 
+    select(-mpg, -cyl_alignment, -transmission) %>%
+    ggpairs(ggplot2::aes(fill="#1F78B4"))
+```
+
+-   all variables display significant collinearity which should be dealt with in model analysis
+
+## Regression Analysis
+
+### Choosing a Model
+
+#### Variable Selection
+
+Conduct backward elimination, selecting the model with highest Adjusted R^2^ value. Repeat iteratively until suggested models no longer show improved Adjusted R^2^.
+
+```{r vs1, echo=TRUE}
+lm_table <- tibble(model = character(), AR2 = numeric(), RMSE = numeric())
+df_model <- df_cars %>% select(-gear)
+lm1 <- lm(formula = mpg ~ . -cyl, data = df_model)
+lm2 <- lm(formula = mpg ~ . -log.disp, data = df_model)
+lm3 <- lm(formula = mpg ~ . -drat, data = df_model)
+lm4 <- lm(formula = mpg ~ . -wt, data = df_model)
+lm5 <- lm(formula = mpg ~ . -qsec, data = df_model)
+lm6 <- lm(formula = mpg ~ . -cyl_alignment, data = df_model)
+lm7 <- lm(formula = mpg ~ . -log.hp, data = df_model)
+lm8 <- lm(formula = mpg ~ . -log.carb, data = df_model)
+```
+
+```{r vs1.1}
+lm_table <- lm_table %>% add_row(
+    model = "lm1",
+    AR2 = summary(lm1)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm1$fitted.values)
+) %>% add_row(
+    model = "lm2",
+    AR2 = summary(lm2)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm2$fitted.values)
+) %>% add_row(
+    model = "lm3",
+    AR2 = summary(lm3)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm3$fitted.values)
+) %>% add_row(
+    model = "lm4",
+    AR2 = summary(lm4)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm4$fitted.values)
+) %>% add_row(
+    model = "lm5",
+    AR2 = summary(lm5)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm5$fitted.values)
+) %>% add_row(
+    model = "lm6",
+    AR2 = summary(lm6)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm6$fitted.values)
+) %>% add_row(
+    model = "lm7",
+    AR2 = summary(lm7)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm7$fitted.values)
+) %>% add_row(
+    model = "lm8",
+    AR2 = summary(lm8)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm8$fitted.values)
+) 
+t(lm_table %>% slice_max(AR2, n=8)) %>% 
+    kbl() %>% kable_styling(bootstrap_options = "condensed")
+```
+
+Model 6 dropping `cyl_alignment` gives the best result. Drop from data frame and cycle through again:
+
+```{r vs2, echo=TRUE}
+df_model <- df_model %>% select(-cyl_alignment)
+lm11 <- lm(formula = mpg ~ . -cyl, data = df_model)
+lm12 <- lm(formula = mpg ~ . -log.disp, data = df_model)
+lm13 <- lm(formula = mpg ~ . -drat, data = df_model)
+lm14 <- lm(formula = mpg ~ . -wt, data = df_model)
+lm15 <- lm(formula = mpg ~ . -qsec, data = df_model)
+lm16 <- lm(formula = mpg ~ . -log.hp, data = df_model)
+lm17 <- lm(formula = mpg ~ . -log.carb, data = df_model)
+```
+
+```{r vs2.1}
+lm_table <- lm_table %>% add_row(
+    model = "lm11",
+    AR2 = summary(lm11)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm11$fitted.values)
+) %>% add_row(
+    model = "lm12",
+    AR2 = summary(lm12)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm12$fitted.values)
+) %>% add_row(
+    model = "lm13",
+    AR2 = summary(lm13)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm13$fitted.values)
+) %>% add_row(
+    model = "lm14",
+    AR2 = summary(lm14)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm14$fitted.values)
+) %>% add_row(
+    model = "lm15",
+    AR2 = summary(lm15)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm15$fitted.values)
+) %>% add_row(
+    model = "lm16",
+    AR2 = summary(lm16)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm16$fitted.values)
+) %>% add_row(
+    model = "lm17",
+    AR2 = summary(lm17)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm17$fitted.values)
+) 
+t(lm_table %>% slice_max(AR2, n=8)) %>% 
+    kbl() %>% kable_styling(bootstrap_options = "condensed")
+```
+
+Model 15: drop `qsec`
+
+```{r vs3, echo=TRUE}
+df_model <- df_model %>% select(-qsec)
+lm21 <- lm(formula = mpg ~ . -cyl, data = df_model)
+lm22 <- lm(formula = mpg ~ . -log.disp, data = df_model)
+lm23 <- lm(formula = mpg ~ . -drat, data = df_model)
+lm24 <- lm(formula = mpg ~ . -wt, data = df_model)
+lm25 <- lm(formula = mpg ~ . -log.hp, data = df_model)
+lm26 <- lm(formula = mpg ~ . -log.carb, data = df_model)
+```
+
+```{r vs3.1}
+lm_table <- lm_table %>% add_row(
+    model = "lm21",
+    AR2 = summary(lm21)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm21$fitted.values)
+) %>% add_row(
+    model = "lm22",
+    AR2 = summary(lm22)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm22$fitted.values)
+) %>% add_row(
+    model = "lm23",
+    AR2 = summary(lm23)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm23$fitted.values)
+) %>% add_row(
+    model = "lm24",
+    AR2 = summary(lm24)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm24$fitted.values)
+) %>% add_row(
+    model = "lm25",
+    AR2 = summary(lm25)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm25$fitted.values)
+) %>% add_row(
+    model = "lm26",
+    AR2 = summary(lm26)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm26$fitted.values)
+) 
+t(lm_table %>% slice_max(AR2, n=8)) %>% 
+    kbl() %>% kable_styling(bootstrap_options = "condensed")
+```
+
+Model 21: drop `cyl`
+
+```{r vs4, echo=TRUE}
+df_model <- df_model %>% select(-cyl)
+lm31 <- lm(formula = mpg ~ . -log.disp, data = df_model)
+lm32 <- lm(formula = mpg ~ . -drat, data = df_model)
+lm33 <- lm(formula = mpg ~ . -wt, data = df_model)
+lm34 <- lm(formula = mpg ~ . -log.hp, data = df_model)
+lm35 <- lm(formula = mpg ~ . -log.carb, data = df_model)
+```
+
+```{r vs4.1}
+lm_table <- lm_table %>% add_row(
+    model = "lm31",
+    AR2 = summary(lm31)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm31$fitted.values)
+) %>% add_row(
+    model = "lm32",
+    AR2 = summary(lm32)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm32$fitted.values)
+) %>% add_row(
+    model = "lm33",
+    AR2 = summary(lm33)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm33$fitted.values)
+) %>% add_row(
+    model = "lm34",
+    AR2 = summary(lm34)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm34$fitted.values)
+) %>% add_row(
+    model = "lm35",
+    AR2 = summary(lm35)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm35$fitted.values)
+) 
+t(lm_table %>% slice_max(AR2, n=8)) %>% 
+    kbl() %>% kable_styling(bootstrap_options = "condensed")
+```
+
+Model 32: drop `drat`
+
+```{r vs5, echo=TRUE}
+df_model <- df_model %>% select(-drat)
+lm41 <- lm(formula = mpg ~ . -log.disp, data = df_model)
+lm42 <- lm(formula = mpg ~ . -wt, data = df_model)
+lm43 <- lm(formula = mpg ~ . -log.hp, data = df_model)
+lm44 <- lm(formula = mpg ~ . -log.carb, data = df_model)
+```
+
+```{r vs5.1}
+lm_table <- lm_table %>% add_row(
+    model = "lm41",
+    AR2 = summary(lm41)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm41$fitted.values)
+) %>% add_row(
+    model = "lm42",
+    AR2 = summary(lm42)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm42$fitted.values)
+) %>% add_row(
+    model = "lm43",
+    AR2 = summary(lm43)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm43$fitted.values)
+) %>% add_row(
+    model = "lm44",
+    AR2 = summary(lm44)$adj.r.squared, 
+    RMSE = rmse(actual = mtcars$mpg, predicted = lm44$fitted.values)
+) 
+t(lm_table %>% slice_max(AR2, n=8)) %>% 
+    kbl() %>% kable_styling(bootstrap_options = "condensed")
+```
+
+No new models improve the R^2^ value, model 32 is most parsimonious, however looking at the RMSE, model 6 has the best predictive rate.
+
+```{r test_model, echo=TRUE}
+fitR2 <- lm(mpg ~ wt + transmission + log.disp + log.carb + log.hp, df_cars)
+fitRMSE <- lm(mpg ~ cyl + drat + wt + qsec + transmission + log.disp + log.carb + log.hp, df_cars)
+```
+
+#### Collinearity
+
+```{r vif, echo=TRUE}
+vif(fitR2)
+vif(fitRMSE)
+vif(lm(mpg ~ wt + transmission + log.hp + log.carb, df_cars))
+vif(lm(mpg ~ cyl + drat + wt + qsec + transmission + log.carb + log.hp, df_cars))
+```
+
+Displacement causes high VIF scores. Removing from the R^2^ model reduces to an acceptable limit, however the RMSE model remains highly collinear.
+
+```{r final_model, echo=TRUE}
+fit <- lm(mpg ~ wt + transmission + log.carb + log.hp, df_cars)
+```
+
+Final test for auto-collinearity of residuals using Watson test:
+
+```{r echo=TRUE}
+dwtest(fit)
+```
+
+DW score is well below threshold of 2 with p-value of 0.15, the null-hypothesis is failed to be rejected, no evident auto-collinearity.
+
+### Testing the Model
+
+```{r test-plot-hist, fig.height=4, fig.width=5}
+par(mfrow=c(1,1))
+hist(fit$residuals, breaks = 10)
+```
+
+```{r test-plot, fig.height=7, fig.width=10}
+par(mfrow=c(2,2))
+plot(fit)
+```
+
+### Evaluating the model
+
+```{r fit-summary}
+summary(fit)
+```
+
+```{r confint, echo=TRUE}
+data.frame(predict(fit, interval="confidence")) %>%
+    mutate(observed = mtcars$mpg) %>% 
+    mutate(in_ci = ifelse(observed >= lwr & observed <= upr,TRUE,FALSE)) %>% 
+    summarize(`% in CI` = round(mean(in_ci)*100,2))
+```
+
+\
+
+\
+
+\
