@@ -7,13 +7,8 @@ output:
     highlight: pygments
     theme: yeti
     df_print: default
+    toc: yes
 ---
-
-<style type="text/css">
-  pre code{
-  font-size: 8pt;
-}
-</style>
 
 ```{r, echo = FALSE}
 # set defaults: cache chunks to speed compiling subsequent edits.
@@ -170,7 +165,11 @@ This study highlights the need for meaningfully sized sample sets with greater d
 
 # Appendix
 
+------------------------------------------------------------------------
+
 ## Exploratory Data Analysis
+
+------------------------------------------------------------------------
 
 The `mtcars` data frame after transforming transmission and engine shape to factor variables:
 
@@ -346,17 +345,26 @@ df_cars %>%
 
 -   all variables display significant collinearity which should be dealt with in model analysis
 
+------------------------------------------------------------------------
+
 ## Regression Analysis
+
+------------------------------------------------------------------------
 
 ### Choosing a Model
 
+------------------------------------------------------------------------
+
 #### Variable Selection
+
+------------------------------------------------------------------------
 
 Conduct backward elimination, selecting the model with highest Adjusted R^2^ value. Repeat iteratively until suggested models no longer show improved Adjusted R^2^.
 
 ```{r vs1, echo=TRUE}
 lm_table <- tibble(model = character(), AR2 = numeric(), RMSE = numeric())
 df_model <- df_cars %>% select(-gear)
+
 lm1 <- lm(formula = mpg ~ . -cyl, data = df_model)
 lm2 <- lm(formula = mpg ~ . -log.disp, data = df_model)
 lm3 <- lm(formula = mpg ~ . -drat, data = df_model)
@@ -409,6 +417,7 @@ Model 6 dropping `cyl_alignment` gives the best result. Drop from data frame and
 
 ```{r vs2, echo=TRUE}
 df_model <- df_model %>% select(-cyl_alignment)
+
 lm11 <- lm(formula = mpg ~ . -cyl, data = df_model)
 lm12 <- lm(formula = mpg ~ . -log.disp, data = df_model)
 lm13 <- lm(formula = mpg ~ . -drat, data = df_model)
@@ -456,6 +465,7 @@ Model 15: drop `qsec`
 
 ```{r vs3, echo=TRUE}
 df_model <- df_model %>% select(-qsec)
+
 lm21 <- lm(formula = mpg ~ . -cyl, data = df_model)
 lm22 <- lm(formula = mpg ~ . -log.disp, data = df_model)
 lm23 <- lm(formula = mpg ~ . -drat, data = df_model)
@@ -498,6 +508,7 @@ Model 21: drop `cyl`
 
 ```{r vs4, echo=TRUE}
 df_model <- df_model %>% select(-cyl)
+
 lm31 <- lm(formula = mpg ~ . -log.disp, data = df_model)
 lm32 <- lm(formula = mpg ~ . -drat, data = df_model)
 lm33 <- lm(formula = mpg ~ . -wt, data = df_model)
@@ -535,6 +546,7 @@ Model 32: drop `drat`
 
 ```{r vs5, echo=TRUE}
 df_model <- df_model %>% select(-drat)
+
 lm41 <- lm(formula = mpg ~ . -log.disp, data = df_model)
 lm42 <- lm(formula = mpg ~ . -wt, data = df_model)
 lm43 <- lm(formula = mpg ~ . -log.hp, data = df_model)
@@ -570,7 +582,11 @@ fitR2 <- lm(mpg ~ wt + transmission + log.disp + log.carb + log.hp, df_cars)
 fitRMSE <- lm(mpg ~ cyl + drat + wt + qsec + transmission + log.disp + log.carb + log.hp, df_cars)
 ```
 
+------------------------------------------------------------------------
+
 #### Collinearity
+
+------------------------------------------------------------------------
 
 ```{r vif, echo=TRUE}
 vif(fitR2)
@@ -593,7 +609,11 @@ dwtest(fit)
 
 DW score is well below threshold of 2 with p-value of 0.15, the null-hypothesis is failed to be rejected, no evident auto-collinearity.
 
+------------------------------------------------------------------------
+
 ### Testing the Model
+
+------------------------------------------------------------------------
 
 ```{r test-plot-hist, fig.height=4, fig.width=5}
 par(mfrow=c(1,1))
@@ -605,7 +625,11 @@ par(mfrow=c(2,2))
 plot(fit)
 ```
 
-### Evaluating the model
+------------------------------------------------------------------------
+
+### Evaluating the Model
+
+------------------------------------------------------------------------
 
 ```{r fit-summary}
 summary(fit)
